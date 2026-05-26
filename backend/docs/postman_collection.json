@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "FindThem API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Register User",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Asha Sharma\",\n  \"email\": \"asha@example.com\",\n  \"password\": \"FindThem123!\",\n  \"mobileNumber\": \"9876543210\",\n  \"countryCode\": \"+91\",\n  \"role\": \"family_member\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"asha@example.com\",\n  \"password\": \"FindThem123!\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create Missing Person Case",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": "{{baseUrl}}/cases",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "missingPersonName", "value": "Ravi Sharma", "type": "text" },
+            { "key": "age", "value": "22", "type": "text" },
+            { "key": "gender", "value": "male", "type": "text" },
+            { "key": "lastSeenDate", "value": "2026-05-20", "type": "text" },
+            { "key": "gpsCoordinates[0]", "value": "77.5946", "type": "text" },
+            { "key": "gpsCoordinates[1]", "value": "12.9716", "type": "text" },
+            { "key": "photos", "type": "file", "src": [] },
+            { "key": "firCopy", "type": "file", "src": [] }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Nearby Cases",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/cases/nearby?lng=77.5946&lat=12.9716&radiusKm=25"
+      }
+    },
+    {
+      "name": "Submit Volunteer Report",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": "{{baseUrl}}/reports",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "relatedCaseId", "value": "CASE_OBJECT_ID", "type": "text" },
+            { "key": "currentGpsLocation[0]", "value": "77.5946", "type": "text" },
+            { "key": "currentGpsLocation[1]", "value": "12.9716", "type": "text" },
+            { "key": "evidenceImages", "type": "file", "src": [] }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin Analytics",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": "{{baseUrl}}/admin/analytics"
+      }
+    }
+  ]
+}
+
