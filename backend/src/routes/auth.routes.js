@@ -20,6 +20,7 @@ router.post('/otp/verify', authLimiter, validate(authValidation.verifyOtp), cont
 router.post('/otp/resend', authLimiter, validate(authValidation.resendOtp), controller.resendOtp);
 router.post('/google', authLimiter, validate(authValidation.googleLogin), controller.googleLogin);
 router.post('/forgot-password', authLimiter, validate(authValidation.forgotPassword), controller.forgotPassword);
+router.post('/reset-password', authLimiter, validate(authValidation.resetPassword), controller.resetPassword);
 router.post('/refresh-token', authLimiter, validate(authValidation.refresh), controller.refreshToken);
 
 module.exports = router;

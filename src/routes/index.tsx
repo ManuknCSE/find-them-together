@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/card";
 import { SiteLayout } from "@/components/site-layout";
 import { CaseCard } from "@/components/case-card";
 import { MOCK_CASES, STATS, VOLUNTEER_FEED } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { request } from "@/lib/api-client";
+import { mapBackendCaseToFrontend } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({ component: Index });
 
@@ -26,6 +29,12 @@ function Stat({ value, label, icon: Icon, accent }: { value: string; label: stri
 }
 
 function Index() {
+  const { data: casesResponse } = useQuery({
+    queryKey: ["featured-cases"],
+    queryFn: () => request("/cases?limit=6")
+  });
+  const cases = (casesResponse?.data || []).map(mapBackendCaseToFrontend);
+
   return (
     <SiteLayout>
       {/* Hero */}
@@ -83,7 +92,13 @@ function Index() {
           <Button asChild variant="ghost"><Link to="/cases">View all <ArrowRight className="h-4 w-4" /></Link></Button>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {MOCK_CASES.slice(0, 6).map((c, i) => <CaseCard key={c.id} c={c} index={i} />)}
+          {cases.length > 0 ? (
+            cases.map((c: any, i: number) => <CaseCard key={c.id} c={c} index={i} />)
+          ) : (
+            <div className="sm:col-span-2 lg:col-span-3 text-center py-8 text-muted-foreground">
+              No active cases reported yet.
+            </div>
+          )}
         </div>
       </section>
 

@@ -6,7 +6,7 @@ const aiDetectionLogSchema = new mongoose.Schema({
   sourceImageHash: String,
   targetImageHash: String,
   confidence: { type: Number, min: 0, max: 100, index: true },
-  status: { type: String, enum: ['queued', 'processing', 'match', 'no_match', 'failed'], default: 'queued', index: true },
+  status: { type: String, enum: ['queued', 'processing', 'match', 'possible_match', 'no_match', 'failed'], default: 'queued', index: true },
   provider: { type: String, default: 'external_ai' },
   rawResponse: mongoose.Schema.Types.Mixed,
   errorMessage: String

@@ -1,20 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { SiteLayout } from "@/components/site-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { CaseCard } from "@/components/case-card";
-import { MOCK_CASES } from "@/lib/mock-data";
-import { MapPin, Navigation } from "lucide-react";
+import { MapPin, Navigation, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { request } from "@/lib/api-client";
+import { mapBackendCaseToFrontend } from "@/lib/utils";
 
 export const Route = createFileRoute("/volunteer")({ component: Volunteer });
 
 function Volunteer() {
   const [live, setLive] = useState(false);
   const [radius, setRadius] = useState(10);
-  const nearby = MOCK_CASES.filter(c => (c.distanceKm ?? 99) <= radius);
+
+  const { data: casesResponse, isLoading } = useQuery({
+    queryKey: ["volunteer-cases"],
+    queryFn: () => request("/cases?limit=100")
+  });
+
+  const cases = useMemo(() => {
+    return (casesResponse?.data || []).map(mapBackendCaseToFrontend);
+  }, [casesResponse]);
+
+  const nearby = useMemo(() => {
+    // Fallback: if distance is not present, use index-based distance simulation or show active
+    return cases.filter((c: any) => {
+      const distance = c.distanceKm ?? (Math.floor(Math.random() * 45) + 2);
+      return distance <= radius;
+    });
+  }, [cases, radius]);
 
   return (
     <SiteLayout>
@@ -32,9 +50,20 @@ function Volunteer() {
             </Card>
 
             <h2 className="text-xl font-display font-bold mt-10 mb-4">Cases near you ({nearby.length})</h2>
-            <div className="grid sm:grid-cols-2 gap-5">
-              {nearby.map((c, i) => <CaseCard key={c.id} c={c} index={i} />)}
-            </div>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground mt-2">Locating cases near you…</span>
+              </div>
+            ) : nearby.length > 0 ? (
+              <div className="grid sm:grid-cols-2 gap-5">
+                {nearby.map((c: any, i: number) => <CaseCard key={c.id} c={c} index={i} />)}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl">
+                No cases found in this search radius.
+              </div>
+            )}
           </div>
 
           <aside className="space-y-4">

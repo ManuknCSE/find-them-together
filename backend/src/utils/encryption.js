@@ -2,9 +2,16 @@ const crypto = require('crypto');
 
 function getKey() {
   const configured = process.env.ENCRYPTION_KEY || '';
+  if (!configured) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_KEY environment variable is required in production');
+    }
+    // Dev only: deterministic dev key (NOT for production use)
+    return require('crypto').createHash('sha256').update('findthem-dev-only').digest();
+  }
   const decoded = Buffer.from(configured, configured.length === 64 ? 'hex' : 'base64');
   if (decoded.length === 32) return decoded;
-  return crypto.createHash('sha256').update(configured || 'findthem-development-key').digest();
+  return require('crypto').createHash('sha256').update(configured).digest();
 }
 
 function encryptString(value) {

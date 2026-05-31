@@ -19,7 +19,18 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'https://res.cloudinary.com', 'data:', 'https://images.unsplash.com', 'https://placehold.co'],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:8080'],
+    }
+  }
+}));
 app.use(cors({
   origin: process.env.CLIENT_URL?.split(',') || '*',
   credentials: true

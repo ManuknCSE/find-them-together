@@ -9,8 +9,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = React.useState<Theme>("light");
 
   React.useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("ft-theme")) as Theme | null;
-    const initial: Theme = stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("ft-theme") as Theme | null;
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial: Theme = stored ?? (prefersDark ? "dark" : "light");
     setTheme(initial);
   }, []);
 

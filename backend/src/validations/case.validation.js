@@ -1,7 +1,5 @@
 const Joi = require('joi');
 
-const coordinates = Joi.array().items(Joi.number()).length(2).required();
-
 const createCase = Joi.object({
   body: Joi.object({
     missingPersonName: Joi.string().min(2).max(120).required(),
@@ -14,19 +12,9 @@ const createCase = Joi.object({
     birthmarks: Joi.string().allow('', null),
     lastSeenClothing: Joi.string().allow('', null),
     lastSeenDate: Joi.date().required(),
-    lastSeenLocation: Joi.object({
-      address: Joi.string().allow('', null),
-      city: Joi.string().allow('', null),
-      state: Joi.string().allow('', null),
-      country: Joi.string().allow('', null)
-    }).default({}),
-    gpsCoordinates: coordinates,
-    familyContactDetails: Joi.object({
-      name: Joi.string().allow('', null),
-      relationship: Joi.string().allow('', null),
-      phone: Joi.string().allow('', null),
-      email: Joi.string().email().allow('', null)
-    }).default({}),
+    lastSeenLocation: Joi.any().optional(),
+    gpsCoordinates: Joi.any().optional(),
+    familyContactDetails: Joi.any().optional(),
     rewardAmount: Joi.number().min(0).default(0)
   })
 });
@@ -52,4 +40,3 @@ const idParam = Joi.object({
 });
 
 module.exports = { createCase, listCases, idParam };
-

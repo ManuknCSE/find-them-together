@@ -9,9 +9,20 @@ const authenticate = asyncHandler(async (req, _res, next) => {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) throw new AppError('Authentication required', 401);
 
-  const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  } catch (err) {
+    throw new AppError('Invalid or expired token', 401);
+  }
+
   const user = await User.findById(decoded.id);
   if (!user) throw new AppError('User no longer exists', 401);
+
+  // SEC-002: tokenVersion check — invalidates tokens after password change / logout-all
+  if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+    throw new AppError('Session expired. Please log in again.', 401);
+  }
 
   req.user = user;
   next();
@@ -30,4 +41,3 @@ const authenticateFirebase = asyncHandler(async (req, _res, next) => {
 });
 
 module.exports = { authenticate, authenticateFirebase };
-

@@ -14,6 +14,8 @@ import { BrandWordmark } from "@/components/brand-logo";
 import { useTheme } from "@/components/theme-provider";
 import { Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth-provider";
+import { request } from "@/lib/api-client";
 
 export const Route = createFileRoute("/auth")({ component: Auth });
 
@@ -26,21 +28,83 @@ function Auth() {
   const { theme, toggle } = useTheme();
   const [stage, setStage] = useState<"form" | "otp" | "success">("form");
   const [loading, setLoading] = useState(false);
-  const [captcha, setCaptcha] = useState(false);
+  const [loginCaptcha, setLoginCaptcha] = useState(false);
+  const [signupCaptcha, setSignupCaptcha] = useState(false);
+
+  // Real auth state and methods
+  const { login, register: apiRegister, verifyOtp: apiVerifyOtp } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
+  const [otp, setOtp] = useState("");
+  const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!captcha) { toast.error("Please complete the CAPTCHA"); return; }
+    const form = e.currentTarget as HTMLFormElement;
+    const isLogin = form.dataset.tab === "login";
+    const captchaOk = isLogin ? loginCaptcha : signupCaptcha;
+    if (!captchaOk) { toast.error("Please complete the CAPTCHA"); return; }
+    
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    setStage("otp");
+    try {
+      if (isLogin) {
+        if (loginMethod === "email") {
+          await login(email, password);
+          setStage("success");
+          toast.success("Successfully logged in!");
+        } else {
+          // Mobile OTP login: Request Twilio OTP to be sent
+          await request("/auth/otp/resend", {
+            method: "POST",
+            body: { mobileNumber, countryCode },
+          });
+          toast.success("OTP sent successfully!");
+          setStage("otp");
+        }
+      } else {
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match");
+          setLoading(false);
+          return;
+        }
+        // Registering
+        await apiRegister({
+          fullName,
+          email,
+          password,
+          mobileNumber,
+          countryCode,
+          role: "Family Member"
+        });
+        toast.success("Account created! Verification OTP sent.");
+        setStage("otp");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
   }
+
   async function verifyOtp() {
+    if (otp.length < 6) {
+      toast.error("Please enter the complete 6-digit verification code");
+      return;
+    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    setStage("success");
+    try {
+      await apiVerifyOtp(mobileNumber, countryCode, otp);
+      setStage("success");
+      toast.success("Phone verified successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Invalid OTP code");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -67,7 +131,7 @@ function Auth() {
       <div className="flex flex-col">
         <div className="flex items-center justify-between p-4 lg:hidden">
           <Link to="/"><BrandWordmark /></Link>
-          <Button variant="ghost" size="icon" onClick={toggle}>{theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</Button>
+          <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">{theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</Button>
         </div>
         <div className="flex-1 grid place-items-center p-6">
           <Card className="glass w-full max-w-md p-6 sm:p-8">
@@ -87,7 +151,7 @@ function Auth() {
                 <h3 className="mt-4 text-xl font-display font-semibold">Verify your phone</h3>
                 <p className="mt-1 text-sm text-muted-foreground">We sent a 6-digit code via SMS</p>
                 <div className="mt-6 flex justify-center">
-                  <InputOTP maxLength={6}>
+                  <InputOTP maxLength={6} value={otp} onChange={setOtp}>
                     <InputOTPGroup>
                       {[0,1,2,3,4,5].map((i) => <InputOTPSlot key={i} index={i} className="h-12 w-12" />)}
                     </InputOTPGroup>
@@ -112,46 +176,64 @@ function Auth() {
                   </TabsList>
 
                   <TabsContent value="login" className="space-y-3 mt-5">
-                    <Tabs defaultValue="email">
-                      <TabsList className="grid grid-cols-2 w-full bg-muted/60">
-                        <TabsTrigger value="email">Email</TabsTrigger>
-                        <TabsTrigger value="phone">Mobile OTP</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="email" className="space-y-3 mt-4">
-                        <Field icon={<Mail className="h-4 w-4" />} label="Email"><Input type="email" placeholder="you@example.com" required /></Field>
-                        <Field icon={<Lock className="h-4 w-4" />} label="Password"><Input type="password" placeholder="••••••••" required /></Field>
-                      </TabsContent>
-                      <TabsContent value="phone" className="space-y-3 mt-4">
-                        <div className="flex gap-2">
-                          <Select defaultValue="+91"><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent>{COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.code} {c.name}</SelectItem>)}</SelectContent></Select>
-                          <Input type="tel" placeholder="98765 43210" className="flex-1" />
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                    <Captcha checked={captcha} onCheck={setCaptcha} />
-                    <Button onClick={submit} disabled={loading} className="w-full gradient-brand text-white">
-                      {loading && <Loader2 className="h-4 w-4 animate-spin" />} Sign in
-                    </Button>
+                    <form onSubmit={submit} data-tab="login" className="space-y-3">
+                      <Tabs value={loginMethod} onValueChange={(val) => setLoginMethod(val as "email" | "phone")}>
+                        <TabsList className="grid grid-cols-2 w-full bg-muted/60">
+                          <TabsTrigger value="email">Email</TabsTrigger>
+                          <TabsTrigger value="phone">Mobile OTP</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="email" className="space-y-3 mt-4">
+                          <Field icon={<Mail className="h-4 w-4" />} label="Email">
+                            <Input type="email" placeholder="you@example.com" required={loginMethod === "email"} value={email} onChange={(e) => setEmail(e.target.value)} />
+                          </Field>
+                          <Field icon={<Lock className="h-4 w-4" />} label="Password">
+                            <Input type="password" placeholder="••••••••" required={loginMethod === "email"} value={password} onChange={(e) => setPassword(e.target.value)} />
+                          </Field>
+                        </TabsContent>
+                        <TabsContent value="phone" className="space-y-3 mt-4">
+                          <div className="flex gap-2">
+                            <Select value={countryCode} onValueChange={setCountryCode}>
+                              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                              <SelectContent>{COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.code} {c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <Input type="tel" placeholder="98765 43210" className="flex-1" required={loginMethod === "phone"} value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} />
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                      <Captcha checked={loginCaptcha} onCheck={setLoginCaptcha} />
+                      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
+                        {loading && <Loader2 className="h-4 w-4 animate-spin" />} Sign in
+                      </Button>
+                    </form>
                   </TabsContent>
 
                   <TabsContent value="signup">
-                    <form onSubmit={submit} className="space-y-3 mt-5">
-                      <Field icon={<User className="h-4 w-4" />} label="Full name"><Input placeholder="Priya Sharma" required /></Field>
-                      <Field icon={<Mail className="h-4 w-4" />} label="Email"><Input type="email" placeholder="you@example.com" required /></Field>
+                    <form onSubmit={submit} data-tab="signup" className="space-y-3 mt-5">
+                      <Field icon={<User className="h-4 w-4" />} label="Full name">
+                        <Input placeholder="Priya Sharma" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                      </Field>
+                      <Field icon={<Mail className="h-4 w-4" />} label="Email">
+                        <Input type="email" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                      </Field>
                       <div className="grid grid-cols-2 gap-3">
-                        <Field icon={<Lock className="h-4 w-4" />} label="Password"><Input type="password" required /></Field>
-                        <Field icon={<Lock className="h-4 w-4" />} label="Confirm"><Input type="password" required /></Field>
+                        <Field icon={<Lock className="h-4 w-4" />} label="Password">
+                          <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                        </Field>
+                        <Field icon={<Lock className="h-4 w-4" />} label="Confirm">
+                          <Input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                        </Field>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Mobile number</Label>
                         <div className="flex gap-2">
-                          <Select defaultValue="+91"><SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                          <Select value={countryCode} onValueChange={setCountryCode}>
+                            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                             <SelectContent>{COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.code} {c.name}</SelectItem>)}</SelectContent>
                           </Select>
-                          <Input type="tel" placeholder="98765 43210" className="flex-1" required />
+                          <Input type="tel" placeholder="98765 43210" className="flex-1" required value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} />
                         </div>
                       </div>
-                      <Captcha checked={captcha} onCheck={setCaptcha} />
+                      <Captcha checked={signupCaptcha} onCheck={setSignupCaptcha} />
                       <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />} Create account
                       </Button>

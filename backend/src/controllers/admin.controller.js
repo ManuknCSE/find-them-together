@@ -4,6 +4,7 @@ const Reward = require('../models/Reward');
 const User = require('../models/User');
 const VolunteerReport = require('../models/VolunteerReport');
 const asyncHandler = require('../utils/asyncHandler');
+const AppError = require('../utils/AppError');
 const { getPagination, paginatedResponse } = require('../utils/pagination');
 const { createNotification } = require('../services/notificationService');
 
@@ -34,16 +35,16 @@ const verifyCase = asyncHandler(async (req, res) => {
     verifiedAt: new Date()
   }, { new: true });
 
-  if (caseDoc) {
-    await createNotification({
-      recipient: caseDoc.createdBy,
-      type: 'case_verified',
-      title: 'Case verification updated',
-      message: `Your case is now ${caseDoc.caseStatus}.`,
-      channels: ['in_app', 'email'],
-      data: { caseId: caseDoc._id }
-    });
-  }
+  if (!caseDoc) throw new AppError('Case not found', 404);
+
+  await createNotification({
+    recipient: caseDoc.createdBy,
+    type: 'case_verified',
+    title: 'Case verification updated',
+    message: `Your case is now ${caseDoc.caseStatus}.`,
+    channels: ['in_app', 'email'],
+    data: { caseId: caseDoc._id }
+  });
 
   res.json(caseDoc);
 });
@@ -54,6 +55,7 @@ const verifyReport = asyncHandler(async (req, res) => {
     verifiedBy: req.user._id,
     verifiedAt: new Date()
   }, { new: true });
+  if (!report) throw new AppError('Report not found', 404);
   res.json(report);
 });
 
@@ -68,12 +70,31 @@ const analytics = asyncHandler(async (_req, res) => {
   res.json({ usersByRole, casesByStatus, reportsByStatus, aiMatches, rewards });
 });
 
-const aiLogs = asyncHandler(async (_req, res) => {
-  res.json(await AiDetectionLog.find().sort({ createdAt: -1 }).limit(200));
+const aiLogs = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = getPagination(req.query);
+  const [data, total] = await Promise.all([
+    AiDetectionLog.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('caseId reportId status confidence createdAt errorMessage'),
+    AiDetectionLog.countDocuments()
+  ]);
+  res.json(paginatedResponse({ data, total, page, limit }));
 });
 
-const rewards = asyncHandler(async (_req, res) => {
-  res.json(await Reward.find().sort({ createdAt: -1 }).limit(200));
+const rewards = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = getPagination(req.query);
+  const [data, total] = await Promise.all([
+    Reward.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('caseId', 'caseId missingPersonName')
+      .populate('claimant', 'fullName email mobileNumber'),
+    Reward.countDocuments()
+  ]);
+  res.json(paginatedResponse({ data, total, page, limit }));
 });
 
 module.exports = { listUsers, listCases, verifyCase, verifyReport, analytics, aiLogs, rewards };

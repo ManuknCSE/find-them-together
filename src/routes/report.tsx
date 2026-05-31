@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import React from "react";
 import { SiteLayout } from "@/components/site-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Upload, MapPin, Check, FileText, User, Fingerprint, CalendarDays, Phone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload, MapPin, Check, FileText, User, Fingerprint, CalendarDays, Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth-provider";
 
 export const Route = createFileRoute("/report")({ component: Report });
 
@@ -26,14 +28,131 @@ const STEPS = [
 
 function Report() {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [step, setStep] = useState(1);
   const [files, setFiles] = useState<File[]>([]);
+  const [publishing, setPublishing] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const progress = (step / STEPS.length) * 100;
+
+  // Step 1: Personal
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [bodyShape, setBodyShape] = useState("");
+  const [skinTone, setSkinTone] = useState("");
+  const [hairStyle, setHairStyle] = useState("");
+  const [eyeColor, setEyeColor] = useState("");
+
+  // Step 2: Identification
+  const [tattoos, setTattoos] = useState("");
+  const [birthmarks, setBirthmarks] = useState("");
+  const [scars, setScars] = useState("");
+  const [disabilityInfo, setDisabilityInfo] = useState("");
+  const [clothesLastWorn, setClothesLastWorn] = useState("");
+  const [otherBodyMarks, setOtherBodyMarks] = useState("");
+
+  // Step 3: Missing details
+  const [dateMissing, setDateMissing] = useState("");
+  const [timeMissing, setTimeMissing] = useState("");
+  const [lastSeenLocation, setLastSeenLocation] = useState("");
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [country, setCountry] = "India";
+
+  // Step 4: Files
+  const [firCopyFile, setFirCopyFile] = useState<File | null>(null);
+  const [additionalDocFile, setAdditionalDocFile] = useState<File | null>(null);
+
+  // Step 5: Contact
+  const [familyPhone, setFamilyPhone] = useState("");
+  const [alternatePhone, setAlternatePhone] = useState("");
+  const [familyEmail, setFamilyEmail] = useState("");
+  const [rewardAmount, setRewardAmount] = useState("");
+  const [preferredCommunication, setPreferredCommunication] = useState<string[]>([]);
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     const dropped = Array.from(e.dataTransfer.files).slice(0, 5);
     setFiles((f) => [...f, ...dropped].slice(0, 5));
+  }
+
+  async function publishCase() {
+    if (!token) {
+      toast.error("Please login to submit a case");
+      navigate({ to: "/auth" });
+      return;
+    }
+    setPublishing(true);
+    try {
+      const fd = new FormData();
+      fd.append("missingPersonName", name);
+      fd.append("age", age);
+      fd.append("gender", gender.toLowerCase() === "male" ? "male" : gender.toLowerCase() === "female" ? "female" : "non_binary");
+      fd.append("height", height);
+      fd.append("weight", weight);
+      fd.append("bodyShape", bodyShape);
+      fd.append("tattoos", tattoos);
+      fd.append("birthmarks", birthmarks);
+      fd.append("lastSeenClothing", clothesLastWorn);
+
+      const lastSeenDateVal = dateMissing ? (timeMissing ? `${dateMissing}T${timeMissing}` : dateMissing) : new Date().toISOString();
+      fd.append("lastSeenDate", lastSeenDateVal);
+
+      fd.append("lastSeenLocation", JSON.stringify({
+        address: lastSeenLocation,
+        city,
+        state: stateName,
+        country
+      }));
+
+      fd.append("familyContactDetails", JSON.stringify({
+        name: "Family Member",
+        relationship: "Family",
+        phone: familyPhone,
+        email: familyEmail
+      }));
+
+      fd.append("rewardAmount", String(Number(rewardAmount) || 0));
+
+      files.forEach((f) => {
+        fd.append("photos", f);
+      });
+
+      if (firCopyFile) {
+        fd.append("firCopy", firCopyFile);
+      }
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"}/cases`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: fd
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Failed to submit case");
+      }
+
+      toast.success("Case published — volunteers and matching systems notified");
+      navigate({ to: "/cases" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish case");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  function handleCommChange(channel: string, checked: boolean) {
+    if (checked) {
+      setPreferredCommunication(prev => [...prev, channel]);
+    } else {
+      setPreferredCommunication(prev => prev.filter(c => c !== channel));
+    }
   }
 
   return (
@@ -46,16 +165,19 @@ function Report() {
 
         {/* Stepper */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3 overflow-x-auto pb-2">
+          <nav aria-label="Form progress" role="list" className="flex items-center justify-between mb-3 overflow-x-auto pb-2">
             {STEPS.map((s) => (
-              <div key={s.id} className={`flex items-center gap-2 text-xs whitespace-nowrap ${step >= s.id ? "text-foreground" : "text-muted-foreground"}`}>
+              <div key={s.id} role="listitem"
+                aria-current={step === s.id ? "step" : undefined}
+                aria-label={`Step ${s.id}: ${s.label} — ${step > s.id ? "Completed" : step === s.id ? "Current" : "Upcoming"}`}
+                className={`flex items-center gap-2 text-xs whitespace-nowrap ${step >= s.id ? "text-foreground" : "text-muted-foreground"}`}>
                 <div className={`grid place-items-center h-7 w-7 rounded-full text-xs font-semibold ${step > s.id ? "bg-[color:var(--color-success)] text-white" : step === s.id ? "gradient-brand text-white" : "bg-muted"}`}>
                   {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
                 </div>
                 <span className="hidden sm:inline">{s.label}</span>
               </div>
             ))}
-          </div>
+          </nav>
           <Progress value={progress} />
         </div>
 
@@ -64,37 +186,42 @@ function Report() {
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {step === 1 && (
                 <Grid title="Personal details">
-                  <Row><Label>Full name</Label><Input placeholder="Priya Sharma" /></Row>
-                  <Row><Label>Age</Label><Input type="number" placeholder="14" /></Row>
-                  <Row><Label>Gender</Label><Select><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{["Male","Female","Other"].map(g=><SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></Row>
-                  <Row><Label>Height (cm)</Label><Input type="number" placeholder="165" /></Row>
-                  <Row><Label>Weight (kg)</Label><Input type="number" placeholder="52" /></Row>
-                  <Row><Label>Body shape</Label><Input placeholder="Slim / Average / Heavy" /></Row>
-                  <Row><Label>Skin tone</Label><Input placeholder="Fair / Wheatish / Dark" /></Row>
-                  <Row><Label>Hair style</Label><Input placeholder="Short black, curly" /></Row>
-                  <Row><Label>Eye color</Label><Input placeholder="Brown" /></Row>
+                  <Row><Label htmlFor="name">Full name</Label><Input id="name" placeholder="Priya Sharma" value={name} onChange={e=>setName(e.target.value)} /></Row>
+                  <Row><Label htmlFor="age">Age</Label><Input id="age" type="number" placeholder="14" value={age} onChange={e=>setAge(e.target.value)} /></Row>
+                  <Row><Label htmlFor="gender">Gender</Label>
+                    <Select value={gender} onValueChange={setGender}>
+                      <SelectTrigger id="gender"><SelectValue placeholder="Select"/></SelectTrigger>
+                      <SelectContent>{["Male","Female","Other"].map(g=><SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </Row>
+                  <Row><Label htmlFor="height">Height (cm)</Label><Input id="height" type="number" placeholder="165" value={height} onChange={e=>setHeight(e.target.value)} /></Row>
+                  <Row><Label htmlFor="weight">Weight (kg)</Label><Input id="weight" type="number" placeholder="52" value={weight} onChange={e=>setWeight(e.target.value)} /></Row>
+                  <Row><Label htmlFor="bodyShape">Body shape</Label><Input id="bodyShape" placeholder="Slim / Average / Heavy" value={bodyShape} onChange={e=>setBodyShape(e.target.value)} /></Row>
+                  <Row><Label htmlFor="skinTone">Skin tone</Label><Input id="skinTone" placeholder="Fair / Wheatish / Dark" value={skinTone} onChange={e=>setSkinTone(e.target.value)} /></Row>
+                  <Row><Label htmlFor="hairStyle">Hair style</Label><Input id="hairStyle" placeholder="Short black, curly" value={hairStyle} onChange={e=>setHairStyle(e.target.value)} /></Row>
+                  <Row><Label htmlFor="eyeColor">Eye color</Label><Input id="eyeColor" placeholder="Brown" value={eyeColor} onChange={e=>setEyeColor(e.target.value)} /></Row>
                 </Grid>
               )}
               {step === 2 && (
                 <Grid title="Identification details">
-                  <Row className="sm:col-span-2"><Label>Tattoos</Label><Textarea placeholder="Describe any tattoos and their location" rows={2} /></Row>
-                  <Row><Label>Birthmarks</Label><Input placeholder="e.g. left cheek" /></Row>
-                  <Row><Label>Scars</Label><Input placeholder="e.g. above right eyebrow" /></Row>
-                  <Row><Label>Disability info</Label><Input placeholder="If any" /></Row>
-                  <Row><Label>Clothes last worn</Label><Input placeholder="Blue school uniform" /></Row>
-                  <Row className="sm:col-span-2"><Label>Other body marks</Label><Textarea placeholder="Other distinguishing features" rows={2} /></Row>
+                  <Row className="sm:col-span-2"><Label htmlFor="tattoos">Tattoos</Label><Textarea id="tattoos" placeholder="Describe any tattoos and their location" rows={2} value={tattoos} onChange={e=>setTattoos(e.target.value)} /></Row>
+                  <Row><Label htmlFor="birthmarks">Birthmarks</Label><Input id="birthmarks" placeholder="e.g. left cheek" value={birthmarks} onChange={e=>setBirthmarks(e.target.value)} /></Row>
+                  <Row><Label htmlFor="scars">Scars</Label><Input id="scars" placeholder="e.g. above right eyebrow" value={scars} onChange={e=>setScars(e.target.value)} /></Row>
+                  <Row><Label htmlFor="disabilityInfo">Disability info</Label><Input id="disabilityInfo" placeholder="If any" value={disabilityInfo} onChange={e=>setDisabilityInfo(e.target.value)} /></Row>
+                  <Row><Label htmlFor="clothesLastWorn">Clothes last worn</Label><Input id="clothesLastWorn" placeholder="Blue school uniform" value={clothesLastWorn} onChange={e=>setClothesLastWorn(e.target.value)} /></Row>
+                  <Row className="sm:col-span-2"><Label htmlFor="otherBodyMarks">Other body marks</Label><Textarea id="otherBodyMarks" placeholder="Other distinguishing features" rows={2} value={otherBodyMarks} onChange={e=>setOtherBodyMarks(e.target.value)} /></Row>
                 </Grid>
               )}
               {step === 3 && (
                 <Grid title="Missing details">
-                  <Row><Label>Date missing</Label><Input type="date" /></Row>
-                  <Row><Label>Time (approx)</Label><Input type="time" /></Row>
-                  <Row className="sm:col-span-2"><Label>Last seen location</Label><div className="relative"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/><Input className="pl-9" placeholder="e.g. Connaught Place metro gate 4" /></div></Row>
-                  <Row><Label>City</Label><Input placeholder="New Delhi" /></Row>
-                  <Row><Label>State</Label><Input placeholder="Delhi" /></Row>
-                  <Row><Label>Country</Label><Input placeholder="India" /></Row>
+                  <Row><Label htmlFor="dateMissing">Date missing</Label><Input id="dateMissing" type="date" value={dateMissing} onChange={e=>setDateMissing(e.target.value)} /></Row>
+                  <Row><Label htmlFor="timeMissing">Time (approx)</Label><Input id="timeMissing" type="time" value={timeMissing} onChange={e=>setTimeMissing(e.target.value)} /></Row>
+                  <Row className="sm:col-span-2"><Label htmlFor="lastSeenLocation">Last seen location</Label><div className="relative"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/><Input id="lastSeenLocation" className="pl-9" placeholder="e.g. Connaught Place metro gate 4" value={lastSeenLocation} onChange={e=>setLastSeenLocation(e.target.value)} /></div></Row>
+                  <Row><Label htmlFor="city">City</Label><Input id="city" placeholder="New Delhi" value={city} onChange={e=>setCity(e.target.value)} /></Row>
+                  <Row><Label htmlFor="stateName">State</Label><Input id="stateName" placeholder="Delhi" value={stateName} onChange={e=>setStateName(e.target.value)} /></Row>
+                  <Row><Label htmlFor="country">Country</Label><Input id="country" placeholder="India" value={country} disabled /></Row>
                   <div className="sm:col-span-2 rounded-lg overflow-hidden border h-56">
-                    <iframe title="map" className="w-full h-full border-0" src="https://www.openstreetmap.org/export/embed.html?bbox=77.20%2C28.60%2C77.25%2C28.65&layer=mapnik" />
+                    <iframe title="map" className="w-full h-full border-0" src={`https://www.openstreetmap.org/export/embed.html?bbox=77.20%2C28.60%2C77.25%2C28.65&layer=mapnik`} />
                   </div>
                 </Grid>
               )}
@@ -106,7 +233,25 @@ function Report() {
                     <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
                     <div className="mt-3 font-medium">Drag and drop 2–5 photos here</div>
                     <div className="text-xs text-muted-foreground mt-1">PNG, JPG up to 8 MB each</div>
-                    <Button type="button" variant="outline" className="mt-4">Browse files</Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        const oversized = picked.filter(f => f.size > 8 * 1024 * 1024);
+                        if (oversized.length) {
+                          toast.error(`${oversized.length} file(s) exceed 8 MB. Please compress them.`);
+                          e.target.value = '';
+                          return;
+                        }
+                        setFiles((f) => [...f, ...picked].slice(0, 5));
+                        e.target.value = '';
+                      }}
+                    />
+                    <Button type="button" variant="outline" className="mt-4" onClick={() => fileInputRef.current?.click()}>Browse files</Button>
                   </div>
                   {files.length > 0 && (
                     <div className="grid grid-cols-5 gap-2 mt-4">
@@ -114,22 +259,24 @@ function Report() {
                     </div>
                   )}
                   <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <Row><Label>FIR copy (PDF/JPG)</Label><Input type="file" accept=".pdf,image/*" /></Row>
-                    <Row><Label>Additional document</Label><Input type="file" /></Row>
+                    <Row><Label htmlFor="firCopy">FIR copy (PDF/JPG)</Label><Input id="firCopy" type="file" accept=".pdf,image/*" onChange={e=>setFirCopyFile(e.target.files?.[0] || null)} /></Row>
+                    <Row><Label htmlFor="additionalDoc">Additional document</Label><Input id="additionalDoc" type="file" onChange={e=>setAdditionalDocFile(e.target.files?.[0] || null)} /></Row>
                   </div>
                 </div>
               )}
               {step === 5 && (
                 <Grid title="Contact & reward">
-                  <Row><Label>Family contact number</Label><Input type="tel" placeholder="+91 98765 43210" /></Row>
-                  <Row><Label>Alternate contact</Label><Input type="tel" /></Row>
-                  <Row><Label>Email address</Label><Input type="email" placeholder="family@example.com" /></Row>
-                  <Row><Label>Reward / bounty (₹)</Label><Input type="number" placeholder="50000" /></Row>
+                  <Row><Label htmlFor="familyPhone">Family contact number</Label><Input id="familyPhone" type="tel" placeholder="+91 98765 43210" value={familyPhone} onChange={e=>setFamilyPhone(e.target.value)} /></Row>
+                  <Row><Label htmlFor="alternatePhone">Alternate contact</Label><Input id="alternatePhone" type="tel" value={alternatePhone} onChange={e=>setAlternatePhone(e.target.value)} /></Row>
+                  <Row><Label htmlFor="familyEmail">Email address</Label><Input id="familyEmail" type="email" placeholder="family@example.com" value={familyEmail} onChange={e=>setFamilyEmail(e.target.value)} /></Row>
+                  <Row><Label htmlFor="rewardAmount">Reward / bounty (₹)</Label><Input id="rewardAmount" type="number" placeholder="50000" value={rewardAmount} onChange={e=>setRewardAmount(e.target.value)} /></Row>
                   <div className="sm:col-span-2">
                     <Label>Preferred communication</Label>
                     <div className="flex gap-4 mt-2">
                       {["Email", "WhatsApp", "SMS"].map(p => (
-                        <label key={p} className="flex items-center gap-2 text-sm"><Checkbox /> {p}</label>
+                        <label key={p} className="flex items-center gap-2 text-sm">
+                          <Checkbox checked={preferredCommunication.includes(p)} onCheckedChange={(checked) => handleCommChange(p, !!checked)} /> {p}
+                        </label>
                       ))}
                     </div>
                   </div>
@@ -153,7 +300,7 @@ function Report() {
           </AnimatePresence>
 
           <div className="flex justify-between mt-8">
-            <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>
+            <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1 || publishing}>
               <ChevronLeft className="h-4 w-4" />Back
             </Button>
             {step < STEPS.length ? (
@@ -161,7 +308,8 @@ function Report() {
                 Next<ChevronRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={() => { toast.success("Case published — volunteers notified"); navigate({ to: "/cases" }); }} className="gradient-brand text-white">
+              <Button onClick={publishCase} disabled={publishing} className="gradient-brand text-white">
+                {publishing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Publish case
               </Button>
             )}

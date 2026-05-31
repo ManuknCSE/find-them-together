@@ -35,7 +35,7 @@ const verifyOtp = Joi.object({
   body: Joi.object({
     mobileNumber: Joi.string().min(7).max(20).required(),
     countryCode: Joi.string().min(1).max(6).default('+91'),
-    otp: Joi.string().length(6).required(),
+    otp: Joi.string().length(6).pattern(/^\d+$/).required(),
     purpose: Joi.string().valid('signup', 'login', 'password_reset').default('login')
   })
 });
@@ -51,8 +51,16 @@ const forgotPassword = Joi.object({
   body: Joi.object({ email: Joi.string().email().required() })
 });
 
+// BUG-013: Added resetPassword validation
+const resetPassword = Joi.object({
+  body: Joi.object({
+    token: Joi.string().hex().length(64).required(),
+    newPassword: password.required()
+  })
+});
+
 const refresh = Joi.object({
   body: Joi.object({ refreshToken: Joi.string().required() })
 });
 
-module.exports = { register, login, resendOtp, verifyOtp, googleLogin, forgotPassword, refresh };
+module.exports = { register, login, resendOtp, verifyOtp, googleLogin, forgotPassword, resetPassword, refresh };

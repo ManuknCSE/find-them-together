@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bell, Menu, Moon, Search, Sun, User } from "lucide-react";
+import { Bell, Menu, Moon, Search, Sun, User, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader, SheetClose } from "@/components/ui/sheet";
 import { BrandWordmark } from "./brand-logo";
 import { useTheme } from "./theme-provider";
+import { useAuth } from "./auth-provider";
 import { NOTIFICATIONS } from "@/lib/mock-data";
 
 const NAV = [
@@ -24,6 +25,7 @@ const NAV = [
 
 export function Navbar() {
   const { theme, toggle } = useTheme();
+  const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
 
@@ -93,24 +95,44 @@ export function Navbar() {
                 <Button variant="ghost" size="icon" aria-label="Account"><User className="h-4 w-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Guest</DropdownMenuLabel>
+                <DropdownMenuLabel>{isAuthenticated ? (user?.fullName ?? "Account") : "Guest"}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild><Link to="/auth">Sign in</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/dashboard">Dashboard</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/report">Report a case</Link></DropdownMenuItem>
+                {isAuthenticated ? (
+                  <>
+                    <DropdownMenuItem asChild><Link to="/dashboard">Dashboard</Link></DropdownMenuItem>
+                    <DropdownMenuItem asChild><Link to="/report">Report a case</Link></DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { logout(); navigate({ to: "/" }); }} className="text-destructive focus:text-destructive">Sign out</DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem asChild><Link to="/auth">Sign in</Link></DropdownMenuItem>
+                    <DropdownMenuItem asChild><Link to="/dashboard">Dashboard</Link></DropdownMenuItem>
+                    <DropdownMenuItem asChild><Link to="/report">Report a case</Link></DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button asChild className="hidden sm:inline-flex ml-1 gradient-brand text-white hover:opacity-95">
-              <Link to="/auth">Login / Register</Link>
-            </Button>
+            {!isAuthenticated && (
+              <Button asChild className="hidden sm:inline-flex ml-1 gradient-brand text-white hover:opacity-95">
+                <Link to="/auth">Login / Register</Link>
+              </Button>
+            )}
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden"><Menu className="h-5 w-5" /></Button>
+                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open mobile menu"><Menu className="h-5 w-5" /></Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-72">
-                <SheetHeader><SheetTitle><BrandWordmark /></SheetTitle></SheetHeader>
+                <SheetHeader className="flex flex-row items-center justify-between">
+                  <SheetTitle><BrandWordmark /></SheetTitle>
+                  <SheetClose asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close mobile menu">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </SheetClose>
+                </SheetHeader>
                 <nav className="mt-6 flex flex-col gap-1">
                   {NAV.map((n) => (
                     <Link key={n.to} to={n.to} className="px-3 py-2 rounded-md hover:bg-accent text-sm font-medium">
