@@ -78,7 +78,7 @@ function Auth() {
           password,
           mobileNumber,
           countryCode,
-          role: "Family Member"
+          role: "family_member"
         });
         toast.success("Account created! Verification OTP sent.");
         setStage("otp");
