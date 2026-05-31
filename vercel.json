@@ -6,6 +6,18 @@
       "destination": "/dist/client/assets/$1"
     },
     {
+      "source": "/api/v1/(.*)",
+      "destination": "/api/backend.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/backend.js"
+    },
+    {
+      "source": "/api-docs(.*)",
+      "destination": "/api/backend.js"
+    },
+    {
       "source": "/(.*)",
       "destination": "/api/index.js"
     }
